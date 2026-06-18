@@ -37,7 +37,9 @@
 #include <utility>
 
 namespace mstd {
+#if __cplusplus < 202002L
 namespace rel_ops { using namespace std::rel_ops; }
+#endif
 using std::initializer_list;
 using std::exchange;
 using std::forward;

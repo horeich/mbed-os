@@ -17,6 +17,8 @@
 #include "drivers/SPI.h"
 #include "platform/mbed_critical.h"
 #include "mbed_error.h"
+// #include "mbed_trace.h"
+// #define TRACE_GROUP "SPI "
 
 #if DEVICE_SPI_ASYNCH
 #include "platform/mbed_power_mgmt.h"
@@ -265,6 +267,29 @@ void SPI::_acquire()
     }
 }
 
+void SPI::suspend()
+{
+    rtos::ScopedMutexLock lock(_get_peripherals_mutex());
+
+    /* Make sure a stale pointer isn't left in peripheral's owner field */
+    if (_peripheral->owner == this) {
+        _peripheral->owner = nullptr;
+    }
+  
+    if (_peripheral->initialized) {
+        spi_free(&_peripheral->spi);
+        _peripheral->initialized = false;
+    }
+}
+
+int SPI::write_unsave(int value)
+{
+    select_no_lock();
+    int ret = spi_master_write(&_peripheral->spi, value);
+    deselect_no_lock();
+    return ret;
+}
+
 int SPI::write(int value)
 {
     select();
@@ -305,6 +330,14 @@ void SPI::select()
     }
 }
 
+void SPI::select_no_lock()
+{
+    if (_select_count++ == 0) {
+        _acquire();
+        _set_ssel(0);
+    }
+}
+
 void SPI::unlock()
 {
     _peripheral->mutex->unlock();
@@ -316,6 +349,13 @@ void SPI::deselect()
         _set_ssel(1);
     }
     unlock();
+}
+
+void SPI::deselect_no_lock()
+{
+    if (--_select_count == 0) {
+        _set_ssel(1);
+    }
 }
 
 void SPI::set_default_write_value(char data)

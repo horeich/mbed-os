@@ -353,6 +353,26 @@ public:
      * @param hz Clock frequency in Hz (default = 1MHz).
      */
     void frequency(int hz = 1000000);
+    
+    /**
+     * @brief Cedes ownership of the %SPI bus and frees resources if not claimed by others.
+     *      Useful for low power devices to deinitalize SPI pins which otherwise would draw power.
+     *      Just call select() or write() to resume.
+     * 
+     */
+    void suspend();
+
+    /**
+     * @brief Writes to the %SPI Slave without locking the bus.
+     *      Make sure no other context is simultaneously writing on the same peripheral.
+     * 
+     * @param value Data to be sent to the SPI slave.  The number of significant bits in this
+     *     value depend on the \c bits parameter to format().
+     * 
+     * @return Response from the %SPI slave.  The number of significant bits in this
+     *     value depend on the \c bits parameter to format().
+     */
+    int write_unsave(int value);
 
     /**
      * @brief Write to the %SPI Slave and return the response.
@@ -440,6 +460,24 @@ public:
      *     as undefined behavior can occur.
      */
     void select(void);
+    
+    /**
+     * @brief Assert the Slave Select line and acquire exclusive access to this SPI bus.
+     *
+     * The slave select line will remain selected (low) for all following operations until
+     * you call #deselect() on this instance.  This allows you to string together multiple SPI transactions
+     * as if they were a single operation (from the perspective of peripheral chips).
+     *
+     * If use_gpio_ssel was not passed to the constructor, manual control of the SSEL line is not possible,
+     * and this function behaves identically to #lock().
+     *
+     * This function will not grant exclusive access to the bus as #lock() is not called.
+     * The advantage is reduced overhead.
+     *
+     * \warning Do not call this function while an asynchronous transfer is in progress,
+     *     as undefined behavior can occur.
+     */
+    void select_no_lock();
 
     /**
      * @brief Deassert the Slave Select line, releasing exclusive access to this SPI bus.
@@ -451,6 +489,17 @@ public:
      *     as undefined behavior can occur.
      */
     void deselect(void);
+    
+    /**
+     * @brief Deassert the Slave Select line, releasing exclusive access to this SPI bus.
+     *
+     * If use_gpio_ssel was not passed to the constructor, manual control of the SSEL line is not possible,
+     * and this function behaves identically to #unlock().
+     *
+     * \warning Do not call this function while an asynchronous transfer is in progress,
+     *     as undefined behavior can occur.
+     */
+    void deselect_no_lock();
 
     /** Set default write data.
       * SPI requires the master to send some data during a read operation.

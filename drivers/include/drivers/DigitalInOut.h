@@ -93,6 +93,10 @@ public:
     /** Set as an input
      */
     void input();
+    
+    /** Set as an analog input
+     */
+    void analog();
 
     /** Set the input pin mode
      *
