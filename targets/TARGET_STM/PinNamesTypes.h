@@ -157,7 +157,8 @@ typedef enum {
 /*  Defines to be used by application */
 typedef enum {
     PIN_INPUT = 0,
-    PIN_OUTPUT
+    PIN_OUTPUT,
+    PIN_ANALOG,
 } PinDirection;
 
 typedef enum {

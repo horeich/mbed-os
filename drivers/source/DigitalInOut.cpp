@@ -35,6 +35,13 @@ void DigitalInOut::input()
     core_util_critical_section_exit();
 }
 
+void DigitalInOut::analog()
+{
+    core_util_critical_section_enter();
+    gpio_dir(&gpio, PIN_ANALOG);
+    core_util_critical_section_exit();
+}
+
 void DigitalInOut::mode(PinMode pull)
 {
     core_util_critical_section_enter();
