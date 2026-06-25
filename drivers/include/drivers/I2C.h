@@ -243,6 +243,33 @@ public:
     I2C(const i2c_pinmap_t &static_pinmap);
     I2C(const i2c_pinmap_t &&) = delete; // prevent passing of temporary objects
 
+    /** Acquire reference to this object.
+     *
+     *  Atomically increases reference count.
+     *
+     * @note Only needs to be called when managing multiple references to the same I2C object
+     * (reference count is already initialized to 1 in constructor).
+     */
+    void ref_acquire(void);
+
+    /** Releases reference to this object.
+     *
+     *  Atomically decreases reference count, calling suspend and destructor if zero is reached.
+     */
+    void ref_release(void);
+
+    /** Suspend the I2C object if all references call this function.
+     *
+     *  Call i2c_uninitialize and sets pins to input explicity in order to save energy.
+     */
+    void suspend(void);
+
+    /** Resumes the I2C object if one of the active references calls this function.
+     *
+     *  Call i2c_init and resets pins.
+     */
+    void resume(void);
+
     /** Set the frequency of the I2C interface.
      * If you do not call this function, the I2C will run at 100kHz speed.
      *
@@ -460,6 +487,9 @@ protected:
     SingletonPtr<rtos::Mutex> _mutex;
     PinName _sda;
     PinName _scl;
+    size_t _ref_count;
+    size_t _suspend_count;
+    bool _is_initialized;
 
 private:
     /** Recover I2C bus, when stuck with SDA low
@@ -474,6 +504,24 @@ private:
      *
      */
     int recover(PinName sda, PinName scl);
+
+    /** (Re-)Initialize I2C bus
+     *
+     * Unstucks and (re-)initializes I2C bus
+     *
+     * @note Must be called in a locked context
+     */
+
+    void _initialize(void);
+
+    /** Free I2C bus
+     *
+     * Disables peripheral clock (and other stuff depending on HAL) and sets SDA and SCL to input
+     *
+     * @note Must be called in a locked context
+     */
+
+    void _uninitialize(void);
 #endif
 };
 

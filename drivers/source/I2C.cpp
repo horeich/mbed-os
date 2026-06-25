@@ -38,6 +38,10 @@ I2C::I2C(PinName sda, PinName scl) :
     // The init function also set the frequency to 100000
     _sda = sda;
     _scl = scl;
+    // References in modules must be explicitly counted via ref_acquire/ref_release (otherwise suspend/resume will lead to errors)
+    _ref_count = 0;
+    _suspend_count = 0;
+    _is_initialized = true;
     recover(sda, scl);
     i2c_init(&_i2c, _sda, _scl);
     unlock();
@@ -53,8 +57,88 @@ I2C::I2C(const i2c_pinmap_t &static_pinmap) :
     // The init function also set the frequency to 100000
     _sda = static_pinmap.sda_pin;
     _scl = static_pinmap.scl_pin;
+    // References in modules must be explicitly counted via ref_acquire/ref_release (otherwise suspend/resume will lead to errors)
+    _ref_count = 0;
+    _suspend_count = 0;
+    _is_initialized = true;
     recover(static_pinmap.sda_pin, static_pinmap.scl_pin);
     i2c_init_direct(&_i2c, &static_pinmap);
+    unlock();
+}
+
+// Important note: _initialize() must be called in a locked context
+void I2C::_initialize(void)
+{
+    // Recover pins - unsticks bus (slaves may possibly still hold SDA otherwise)
+    recover(_sda, _scl);
+    //  Initialize I2C bus - enables peripheral clock, sets hardware registers and configures pins (attention: also resets frequency to default)
+    i2c_init(&_i2c, _sda, _scl);
+    // Reset customized frequency
+    i2c_frequency(&_i2c, _hz);
+    _is_initialized = true;
+}
+
+// Important note: _uninitialize() must be called in a locked context
+void I2C::_uninitialize(void)
+{
+    if (!_is_initialized)
+    {
+        // Should not happen by invariant - but better make sure anyway
+        return;
+    }
+
+    // i2c_free() disables peripheral clock (and other stuff depending on HAL) to save energy
+    i2c_free(&_i2c);
+    _is_initialized = false;
+
+    // Call i2c_free and sets pins to input explicity in order to save energy.
+    mbed::DigitalInOut(_sda, PIN_INPUT, PinMode::PullNone, 0);
+    mbed::DigitalInOut(_scl, PIN_INPUT, PinMode::PullNone, 0);
+}
+
+void I2C::ref_acquire(void)
+{
+    lock();
+    _ref_count++;
+    if (!_is_initialized)
+    {
+        // May possibly need to re-initialize (for example: I2C bus got suspended, now additonal new module/driver acquires I2C)
+        _initialize();
+    }
+    unlock();
+}
+
+void I2C::ref_release(void)
+{
+    lock();
+    _ref_count--;
+    // May possibly need to suspend (for example: Two references called suspend, third one did not; now the third one calls release
+    if (_suspend_count == _ref_count)
+    {
+        _uninitialize();
+    }
+    unlock();
+}
+
+void I2C::suspend(void)
+{
+    lock();
+    _suspend_count++;
+    if (_suspend_count == _ref_count)
+    {
+        _uninitialize();
+    }
+    unlock();
+}
+
+void I2C::resume(void)
+{
+    lock();
+    _suspend_count--;
+    if (!_is_initialized)
+    {
+        _initialize();
+    }
     unlock();
 }
 
