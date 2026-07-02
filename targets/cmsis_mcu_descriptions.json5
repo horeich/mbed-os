@@ -11857,6 +11857,74 @@
         "sub_family": "STM32U585",
         "vendor": "STMicroelectronics:13"
     },
+    "STM32U585VITx": {
+        "algorithms": [
+            {
+                "default": true,
+                "file_name": "CMSIS/Flash/STM32U5xx_2M_0800.FLM",
+                "ram_size": null,
+                "ram_start": null,
+                "size": 2097152,
+                "start": 134217728
+            }
+        ],
+        "family": "STM32U5 Series",
+        "from_pack": {
+            "pack": "STM32U5xx_DFP",
+            "url": "http://www.keil.com/pack",
+            "vendor": "Keil",
+            "version": "1.0.5"
+        },
+        "memories": {
+            "IRAM1": {
+                "access": {
+                    "execute": false,
+                    "non_secure": false,
+                    "non_secure_callable": false,
+                    "peripheral": false,
+                    "read": true,
+                    "secure": false,
+                    "write": true
+                },
+                "default": true,
+                "size": 786432,
+                "start": 536870912,
+                "startup": false
+            },
+            "IROM1": {
+                "access": {
+                    "execute": true,
+                    "non_secure": false,
+                    "non_secure_callable": false,
+                    "peripheral": false,
+                    "read": true,
+                    "secure": false,
+                    "write": false
+                },
+                "default": true,
+                "size": 2097152,
+                "start": 134217728,
+                "startup": true
+            }
+        },
+        "name": "STM32U585VITx",
+        "processor": {
+            "Symmetric": {
+                "core": "CortexM33",
+                "fpu": "SinglePrecision",
+                "mpu": "Present",
+                "units": 1
+            }
+        },
+        "sectors": [
+            [
+                134217728,
+                2048
+            ]
+        ],
+        "sub_family": "STM32U585",
+        "vendor": "STMicroelectronics:13"
+    },
     "STM32U545RETx": {
         "algorithms": [
             {

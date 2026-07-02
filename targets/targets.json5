@@ -4496,6 +4496,13 @@ mode is recommended for target MCUs with small amounts of flash and RAM.",
         },
         "image_url": "https://www.st.com/bin/ecommerce/api/image.PF271412.en.feature-description-include-personalized-no-cpn-large.jpg"
     },
+    "STM32U585VI": {
+        // Custom board: STM32U585VIT6 in LQFP100, no dedicated SMPS pinout.
+        "inherits": [
+            "MCU_STM32U585xI"
+        ],
+        "device_name": "STM32U585VITx"
+    },
     "MCU_STM32U545xE": {
         "inherits": [
             "MCU_STM32U5"
