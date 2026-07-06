@@ -339,7 +339,7 @@ void USBPhyHw::init(USBPhyEvents *events)
     __HAL_RCC_SYSCFG_CLK_ENABLE();
 #endif
 
-#if defined(PWR_CR2_USV)
+#if defined(PWR_CR2_USV) || defined(PWR_SVMCR_USV)
     HAL_PWREx_EnableVddUSB();
 #endif
 
