@@ -854,8 +854,8 @@ protected:
     static spi_peripheral_s _peripherals[SPI_PERIPHERALS_USED];
     static int _peripherals_used;
 
-    // Holds the reference to the associated peripheral.
     spi_peripheral_s *_peripheral;
+    // Holds the reference to the associated peripheral.
 
 #if DEVICE_SPI_ASYNCH
     /* Interrupt */
