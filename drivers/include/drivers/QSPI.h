@@ -216,6 +216,35 @@ protected:
      */
     virtual void unlock(void);
 
+    /** Acquire a reference to this QSPI object.
+     *
+     *  Atomically increases the reference count, re-initializing the peripheral if it is
+     *  currently suspended. The count starts at 1 for the object's creator, so a single
+     *  owner may call suspend()/resume() without ever calling ref_acquire().
+     */
+    void ref_acquire(void);
+
+    /** Release a reference to this QSPI object.
+     *
+     *  Atomically decreases the reference count and suspends the peripheral once every
+     *  remaining holder has suspended.
+     */
+    void ref_release(void);
+
+    /** Suspend the peripheral if all holders have asked to.
+     *
+     *  Calls qspi_free() (which gates the peripheral clock) and parks IO0..IO3, SCLK and
+     *  CS# in analog mode to stop them drawing current. Any holder that has not suspended
+     *  keeps the bus alive.
+     */
+    void suspend(void);
+
+    /** Resume the peripheral on behalf of one holder.
+     *
+     *  Re-runs qspi_init(), which restores the pin muxing. Safe to call when not suspended.
+     */
+    void resume(void);
+
     qspi_t _qspi;
 
     static SingletonPtr<rtos::Mutex> _mutex;
@@ -233,10 +262,18 @@ protected:
     PinName _qspi_io0, _qspi_io1, _qspi_io2, _qspi_io3, _qspi_clk, _qspi_cs; //IO lines, clock and chip select
     const qspi_pinmap_t *_static_pinmap;
     bool (QSPI::* _init_func)(void);
+    size_t _ref_count;    //Number of holders of this object
+    size_t _suspend_count;//Number of holders that have suspended it
 
 private:
     bool _initialize();
     bool _initialize_direct();
+
+    /* Free the peripheral and park the pins; no-op when already suspended */
+    void _uninitialize();
+
+    /* Put IO0..IO3, SCLK and CS# into analog mode so they cannot draw current */
+    void _park_pins();
 
     /*
      * This function builds the qspi command struct to be send to Hal

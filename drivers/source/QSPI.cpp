@@ -16,6 +16,7 @@
  */
 
 #include "drivers/QSPI.h"
+#include "drivers/DigitalInOut.h"
 #include "platform/mbed_critical.h"
 #include <string.h>
 
@@ -59,6 +60,8 @@ QSPI::QSPI(PinName io0, PinName io1, PinName io2, PinName io3, PinName sclk, Pin
     _mode = mode;
     _hz = ONE_MHZ;
     _initialized = false;
+    _ref_count = 1;   // the creator counts as a holder
+    _suspend_count = 0;
     _init_func = &QSPI::_initialize;
 
     //Go ahead init the device here with the default config
@@ -85,6 +88,8 @@ QSPI::QSPI(const qspi_pinmap_t &pinmap, int mode) : _qspi()
     _mode = mode;
     _hz = ONE_MHZ;
     _initialized = false;
+    _ref_count = 1;   // the creator counts as a holder
+    _suspend_count = 0;
     _init_func = &QSPI::_initialize_direct;
 
     //Go ahead init the device here with the default config
@@ -327,6 +332,82 @@ void QSPI::_build_qspi_command(qspi_inst_t instruction, int address, int alt)
 
     //Set up bus width for data phase
     _qspi_command.data.bus_width = _data_width;
+}
+
+
+void QSPI::ref_acquire(void)
+{
+    lock();
+    _ref_count++;
+    if (!_initialized) {
+        // A previous holder suspended the bus; a new one needs it back.
+        (this->*_init_func)();
+    }
+    unlock();
+}
+
+void QSPI::ref_release(void)
+{
+    lock();
+    if (_ref_count > 0) {
+        _ref_count--;
+    }
+    // The holder that just left may have been the only one keeping the bus awake.
+    if (_suspend_count >= _ref_count) {
+        _uninitialize();
+    }
+    unlock();
+}
+
+void QSPI::suspend(void)
+{
+    lock();
+    _suspend_count++;
+    // Only power down once every remaining holder agrees; one active user keeps it alive.
+    if (_suspend_count >= _ref_count) {
+        _uninitialize();
+    }
+    unlock();
+}
+
+void QSPI::resume(void)
+{
+    lock();
+    if (_suspend_count > 0) {
+        _suspend_count--;
+    }
+    if (!_initialized) {
+        (this->*_init_func)();
+    }
+    unlock();
+}
+
+void QSPI::_uninitialize(void)
+{
+    if (!_initialized) {
+        return;
+    }
+
+    // qspi_free() de-inits the HAL handle, which gates the peripheral clock.
+    qspi_free(&_qspi);
+    _initialized = false;
+
+    _park_pins();
+}
+
+void QSPI::_park_pins(void)
+{
+    // Analog, not PIN_INPUT: unlike I2C these lines have no external pull-ups (only CS#
+    // typically does), so an input buffer would sit on a floating pin, oscillate around the
+    // threshold and draw current. Analog mode disables the input buffer outright.
+    const PinName pins[] = { _qspi_io0, _qspi_io1, _qspi_io2, _qspi_io3, _qspi_clk, _qspi_cs };
+
+    for (size_t i = 0; i < sizeof(pins) / sizeof(pins[0]); i++) {
+        if (pins[i] != NC) {
+            mbed::DigitalInOut park(pins[i], PIN_INPUT, PinMode::PullNone, 0);
+            park.analog();
+        }
+    }
 }
 
 } // namespace mbed
