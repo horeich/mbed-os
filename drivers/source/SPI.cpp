@@ -183,6 +183,15 @@ SPI::~SPI()
             _peripheral->owner = nullptr;
         }
 
+        /* Withdraw this object's suspend vote, otherwise suspendCount could stay above the
+         * shrinking numUsers and the peripheral would look permanently suspended. */
+        if (_suspended) {
+            _suspended = false;
+            if (_peripheral->suspendCount > 0) {
+                _peripheral->suspendCount--;
+            }
+        }
+
         if (--_peripheral->numUsers == 0) {
             _dealloc(_peripheral);
         }
@@ -256,10 +265,23 @@ void SPI::frequency(int hz)
     unlock();
 }
 
-// Note: Private function with no locking
+// Note: Private function with no locking - callers must hold the peripheral's transfer mutex
 void SPI::_acquire()
 {
-    if (_peripheral->owner != this) {
+    /* Any transfer implicitly resumes this object, mirroring the documented "just call select() or
+     * write() to resume" contract, and keeps suspendCount honest. */
+    if (_suspended) {
+        _suspended = false;
+        if (_peripheral->suspendCount > 0) {
+            _peripheral->suspendCount--;
+        }
+    }
+
+    /* Re-initialize when we are not the owner, but ALSO when the peripheral has been freed while we
+     * still held ownership - otherwise a suspend() by another SPI object on this same peripheral
+     * would leave us as owner of de-initialized hardware, and every subsequent transfer would clock
+     * garbage instead of re-running spi_init(). */
+    if (_peripheral->owner != this || !_peripheral->initialized) {
         _init_func(this);
         spi_format(&_peripheral->spi, _bits, _mode, 0);
         spi_frequency(&_peripheral->spi, _hz);
@@ -269,17 +291,34 @@ void SPI::_acquire()
 
 void SPI::suspend()
 {
-    rtos::ScopedMutexLock lock(_get_peripherals_mutex());
+    /* Take the peripheral's transfer mutex first: another SPI object on this same peripheral may be
+     * midway through a locked multi-byte frame */
+    lock();
+    {
+        rtos::ScopedMutexLock tableLock(_get_peripherals_mutex());
 
-    /* Make sure a stale pointer isn't left in peripheral's owner field */
-    if (_peripheral->owner == this) {
-        _peripheral->owner = nullptr;
+        if (!_suspended) {
+            _suspended = true;
+            _peripheral->suspendCount++;
+        }
+
+        /* Only release the shared hardware once every user of this peripheral has suspended. */
+        if (_peripheral->suspendCount >= _peripheral->numUsers && _peripheral->initialized) {
+            /* Clear the owner unconditionally, not just when it is us: the peripheral is about to
+             * be de-initialized, so no object may keep ownership of it across the free. */
+            _peripheral->owner = nullptr;
+            spi_free(&_peripheral->spi);
+            _peripheral->initialized = false;
+        }
     }
-  
-    if (_peripheral->initialized) {
-        spi_free(&_peripheral->spi);
-        _peripheral->initialized = false;
-    }
+    unlock();
+}
+
+void SPI::resume()
+{
+    lock();
+    _acquire(); // clears this object's suspend vote and re-initializes if needed
+    unlock();
 }
 
 int SPI::write_unsave(int value)

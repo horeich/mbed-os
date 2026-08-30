@@ -358,9 +358,28 @@ public:
      * @brief Cedes ownership of the %SPI bus and frees resources if not claimed by others.
      *      Useful for low power devices to deinitalize SPI pins which otherwise would draw power.
      *      Just call select() or write() to resume.
-     * 
+     *
+     * @note Several %SPI objects may share one physical peripheral (one object per slave device,
+     *      each with its own format/frequency/chip select). Suspending is therefore reference
+     *      counted the same way I2C::suspend() is: the hardware is only released once EVERY %SPI
+     *      object on this peripheral has suspended. A suspend by one device can never pull the
+     *      peripheral out from under another device that is still using it.
+     *
+     * @note Safe to call concurrently with transfers on the same peripheral: the peripheral's
+     *      transfer mutex is held while the hardware is freed, so it cannot happen mid-transaction.
      */
     void suspend();
+
+    /**
+     * @brief Reclaims the %SPI bus after suspend() and re-applies this object's configuration.
+     *
+     * Counterpart to suspend(), mirroring I2C::resume(). Calling it is optional: any transfer
+     * implicitly resumes this object, because _acquire() re-initializes the peripheral whenever it
+     * is not initialized. Use it when a device needs the bus powered up before the first transfer.
+     *
+     * Resuming an object that is not suspended is a no-op beyond re-acquiring ownership.
+     */
+    void resume();
 
     /**
      * @brief Writes to the %SPI Slave without locking the bus.
@@ -817,6 +836,10 @@ protected:
         SPI *owner = nullptr;
         /* Number of SPI objects that have been created which reference this peripheral. */
         uint8_t numUsers = 0;
+        /* Number of those objects that are currently suspended. The peripheral is only freed once
+         * suspendCount == numUsers, so one slave device suspending cannot deinitialize the bus
+         * while another slave device on the same peripheral is still using it. */
+        uint8_t suspendCount = 0;
         /* True iff anyone has ever called spi_init() / spi_init_direct() for this peripheral */
         bool initialized = false;
 #if DEVICE_SPI_ASYNCH && MBED_CONF_DRIVERS_SPI_TRANSACTION_QUEUE_LEN
@@ -882,6 +905,10 @@ protected:
     char _write_fill;
     /* Select count to handle re-entrant selection */
     volatile uint8_t _select_count = 0;
+    /* True iff this object has suspended and not yet resumed. Counted once in
+     * _peripheral->suspendCount, so repeated suspend()s stay idempotent. Guarded by the
+     * peripheral's transfer mutex. */
+    bool _suspended = false;
     /* Static pinmap data */
     const spi_pinmap_t *_static_pinmap;
     /* SPI peripheral name */
