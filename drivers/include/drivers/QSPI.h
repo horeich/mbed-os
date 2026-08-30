@@ -207,15 +207,6 @@ public:
     qspi_status_t command_transfer(qspi_inst_t instruction, int address, const char *tx_buffer, size_t tx_length, const char *rx_buffer, size_t rx_length);
 
 #if !defined(DOXYGEN_ONLY)
-protected:
-    /** Acquire exclusive access to this SPI bus
-     */
-    virtual void lock(void);
-
-    /** Release exclusive access to this SPI bus
-     */
-    virtual void unlock(void);
-
     /** Acquire a reference to this QSPI object.
      *
      *  Atomically increases the reference count, re-initializing the peripheral if it is
@@ -244,6 +235,16 @@ protected:
      *  Re-runs qspi_init(), which restores the pin muxing. Safe to call when not suspended.
      */
     void resume(void);
+
+protected:
+    /** Acquire exclusive access to this SPI bus
+     */
+    virtual void lock(void);
+
+    /** Release exclusive access to this SPI bus
+     */
+    virtual void unlock(void);
+
 
     qspi_t _qspi;
 
