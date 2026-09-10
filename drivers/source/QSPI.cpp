@@ -18,6 +18,7 @@
 #include "drivers/QSPI.h"
 #include "drivers/DigitalInOut.h"
 #include "platform/mbed_critical.h"
+#include "hal/pinmap.h"   // pin_function() - see _park_pins()
 #include <string.h>
 
 #if DEVICE_QSPI
@@ -400,13 +401,35 @@ void QSPI::_park_pins(void)
     // Analog, not PIN_INPUT: unlike I2C these lines have no external pull-ups (only CS#
     // typically does), so an input buffer would sit on a floating pin, oscillate around the
     // threshold and draw current. Analog mode disables the input buffer outright.
-    const PinName pins[] = { _qspi_io0, _qspi_io1, _qspi_io2, _qspi_io3, _qspi_clk, _qspi_cs };
+    //
+    // This must NOT be spelled DigitalInOut(pin, PIN_ANALOG, ...) or DigitalInOut::analog().
+    // PinDirection is {PIN_INPUT, PIN_OUTPUT, PIN_ANALOG}, and both gpio_init_inout() and
+    // gpio_dir() test only for PIN_INPUT with everything else falling through to the OUTPUT
+    // branch - so those spellings configure a push-pull output driving the ODR value (0 here).
+    // That is what this function used to do: it drove all six lines LOW, CS# included, which
+    // leaves a flash that keeps its supply permanently SELECTED rather than in standby or deep
+    // power-down - measurably worse than not suspending at all. pin_function() is the only route
+    // to LL_GPIO_MODE_ANALOG, and it is what analogin_init() itself uses.
+    const PinName pins[] = { _qspi_io0, _qspi_io1, _qspi_io2, _qspi_io3, _qspi_clk };
 
     for (size_t i = 0; i < sizeof(pins) / sizeof(pins[0]); i++) {
         if (pins[i] != NC) {
+#if defined(TARGET_STM)
+            pin_function(pins[i], STM_PIN_DATA(STM_MODE_ANALOG, GPIO_NOPULL, 0));
+#else
+            // No portable analog-mode API; a floating input is still better than a driven line.
             mbed::DigitalInOut park(pins[i], PIN_INPUT, PinMode::PullNone, 0);
-            park.analog();
+#endif
         }
+    }
+
+    // CS# is the exception and must stay HIGH: a device whose supply is left on is selected for
+    // as long as CS# is low, so it can neither idle in standby nor stay in deep power-down.
+    // A pull-up rather than analog, because analog would leave it floating on boards without an
+    // external pull-up. It costs nothing - both ends sit high, so no current flows - and it is
+    // still high-impedance enough for the peripheral to take the pin back on resume.
+    if (_qspi_cs != NC) {
+        mbed::DigitalInOut park_cs(_qspi_cs, PIN_INPUT, PinMode::PullUp, 1);
     }
 }
 
