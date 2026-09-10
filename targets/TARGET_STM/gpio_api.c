@@ -161,10 +161,25 @@ inline void gpio_dir(gpio_t *obj, PinDirection direction)
     }
 #endif /* DUAL_CORE */
 
-    if (direction == PIN_INPUT) {
-        LL_GPIO_SetPinMode(obj->gpio, obj->ll_pin, LL_GPIO_MODE_INPUT);
-    } else {
-        LL_GPIO_SetPinMode(obj->gpio, obj->ll_pin, LL_GPIO_MODE_OUTPUT);
+    /* PinDirection has THREE values on this target (PinNamesTypes.h): PIN_INPUT, PIN_OUTPUT and
+     * PIN_ANALOG. This used to be a two-way if/else, so PIN_ANALOG fell through to the OUTPUT
+     * branch - silently, because it is a valid enumerator and an if/else warns about nothing.
+     * DigitalInOut::analog() therefore configured a push-pull output driving whatever was in ODR,
+     * which is the opposite of releasing the pin. */
+    switch (direction) {
+        case PIN_INPUT:
+            LL_GPIO_SetPinMode(obj->gpio, obj->ll_pin, LL_GPIO_MODE_INPUT);
+            break;
+        case PIN_ANALOG:
+            /* Input buffer off: no Schmitt trigger to draw crowbar current on a floating or
+             * mid-rail pin. Note this does NOT touch PUPDR or the L4/L5 analog-switch bit in
+             * ASCR - gpio_dir() only owns MODER. Callers that need the pull cleared go through
+             * gpio_mode(), which DigitalInOut::analog() now does. */
+            LL_GPIO_SetPinMode(obj->gpio, obj->ll_pin, LL_GPIO_MODE_ANALOG);
+            break;
+        default:
+            LL_GPIO_SetPinMode(obj->gpio, obj->ll_pin, LL_GPIO_MODE_OUTPUT);
+            break;
     }
 
 #if defined(DUAL_CORE) && (TARGET_STM32H7)

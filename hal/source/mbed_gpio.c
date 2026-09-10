@@ -64,8 +64,18 @@ void gpio_init_inout(gpio_t *gpio, PinName pin, PinDirection direction, PinMode 
         if (pin != NC) {
             gpio_write(gpio, value);    // we prepare the value in case it is switched later
         }
-    } else {
+    } else if (direction == PIN_OUTPUT) {
         _gpio_init_out(gpio, pin, mode, value);
+    } else {
+        // Some targets extend PinDirection beyond in/out - PIN_ANALOG on STM32, for instance.
+        // Deliberately not named here: the enumerator does not exist everywhere, and the point is
+        // to pass any such direction through to the target rather than silently treating it as an
+        // output. On a two-value target this branch is unreachable.
+        gpio_init(gpio, pin);
+        if (pin != NC) {
+            gpio_mode(gpio, mode);
+            gpio_dir(gpio, direction);
+        }
     }
 }
 

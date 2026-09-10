@@ -38,6 +38,10 @@ void DigitalInOut::input()
 void DigitalInOut::analog()
 {
     core_util_critical_section_enter();
+    // The pull goes first: gpio_dir() only owns MODER, so without this the pull the pin was
+    // constructed with survives into analog mode and keeps a ~40 kOhm path to a rail - which is
+    // never what a caller releasing a pin wants.
+    gpio_mode(&gpio, PullNone);
     gpio_dir(&gpio, PIN_ANALOG);
     core_util_critical_section_exit();
 }
