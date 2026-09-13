@@ -75,6 +75,7 @@ void gpio_init_inout(gpio_t *gpio, PinName pin, PinDirection direction, PinMode 
         if (pin != NC) {
             gpio_mode(gpio, mode);
             gpio_dir(gpio, direction);
+            gpio_write(gpio, value);    // we prepare the value in case it is switched later
         }
     }
 }
