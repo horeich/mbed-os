@@ -419,6 +419,14 @@ void USBPhyHw::deinit()
     HAL_StatusTypeDef ret = HAL_PCD_DeInit(&hpcd);
     MBED_ASSERT(ret == HAL_OK);
 
+#if defined(PWR_CR2_USV) || defined(PWR_SVMCR_USV)
+    // Symmetric to init(), which enables it. VDDUSB supplies the transceiver and the D+ pull-up and
+    // nothing else, so leaving it on after the cable is gone costs current for as long as the device
+    // runs - about 20 uA on an STM32L4, invisible in a GPIO dump because no pin changes. The next
+    // init() turns it back on, which is what a mode switch (MSD <-> CDC) and a reconnect do.
+    HAL_PWREx_DisableVddUSB();
+#endif
+
     NVIC_DisableIRQ(USBHAL_IRQn);
 
     if (events != NULL) {
