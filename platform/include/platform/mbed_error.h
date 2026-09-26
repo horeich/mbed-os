@@ -262,6 +262,7 @@ typedef enum _mbed_error_type_t {
     MBED_MODULE_TARGET_SDK                      22      SDK
     MBED_MODULE_BLE                             23      BLE
     MBED_MODULE_NETWORK_STATS                   24      Network Statistics
+    MBED_MODULE_CELLULAR_NETWORK_STACK          26      Cellular network stack (modem link: service, registration, addressing)
 
     MBED_MODULE_UNKNOWN                         255     Unknown module
     \endverbatim
@@ -294,6 +295,10 @@ typedef enum _mbed_module_type {
     MBED_MODULE_TARGET_SDK,
     MBED_MODULE_BLE,
     MBED_MODULE_NETWORK_STATS,
+    // Appended, never inserted: the values are recorded in error contexts and in the applications'
+    // (module, code) -> flag tables, so renumbering an existing entry would change what past errors
+    // mean. Tells the cellular link apart from the generic network stack, which LoRa also uses.
+    MBED_MODULE_CELLULAR_NETWORK_STACK,
     /* Add More entities here as required */
 
     MBED_MODULE_UNKNOWN = 255,
