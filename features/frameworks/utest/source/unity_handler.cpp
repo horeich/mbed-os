@@ -20,17 +20,32 @@
 #include "utest/utest_stack_trace.h"
 #include "utest/unity_handler.h"
 #include "greentea-client/test_env.h"
+#include "unity/unity.h"
 
+// End only the current test, instead of raise_failure() asserting and stopping the program.
+// Only inside RUN_TEST, whose TEST_PROTECT set the jump target.
+static bool unity_standalone_test_running()
+{
+    return !utest::v1::Harness::is_busy() && Unity.CurrentTestName != NULL;
+}
 
 void utest_unity_assert_failure(void)
 {
     UTEST_LOG_FUNCTION();
+    if (unity_standalone_test_running()) {
+        Unity.CurrentTestFailed = 1;
+        TEST_ABORT(); // JMP
+    }
     utest::v1::Harness::raise_failure(utest::v1::REASON_ASSERTION);
 }
 
 void utest_unity_ignore_failure(void)
 {
     UTEST_LOG_FUNCTION();
+    if (unity_standalone_test_running()) {
+        Unity.CurrentTestIgnored = 1;
+        TEST_ABORT(); // JMP
+    }
     utest::v1::Harness::raise_failure(utest::v1::failure_reason_t(utest::v1::REASON_ASSERTION | utest::v1::REASON_IGNORE));
 }
 

@@ -1315,6 +1315,7 @@ int UnityEnd(void)
     UNITY_PRINT_EOL();
     UNITY_OUTPUT_FLUSH();
     UNITY_OUTPUT_COMPLETE();
+    Unity.CurrentTestName = NULL; /* no test running: a later failure must not jump into a finished one */
     return (int)(Unity.TestFailures);
 }
 
